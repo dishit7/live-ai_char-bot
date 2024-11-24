@@ -34,7 +34,7 @@ export default function Page() {
   }, []);
 
   return (
-    <main data-lk-theme="default" className="h-full grid content-center bg-[var(--lk-bg)]">
+    <main data-lk-theme="default" className="min-h-screen bg-gradient-to-b from-gray-900 to-gray-800 text-white">
       <LiveKitRoom
         token={connectionDetails?.participantToken}
         serverUrl={connectionDetails?.serverUrl}
@@ -52,9 +52,10 @@ export default function Page() {
           console.log('Disconnected from LiveKit room');
           updateConnectionDetails(undefined);
         }}
-        className="grid grid-rows-[2fr_1fr] items-center h-screen" // Add h-screen
+        className="flex flex-col justify-between min-h-screen p-6"
       >
-        <div className="grid grid-rows-[1fr_1fr] gap-4 h-full"> {/* Add h-full */}
+        <div className="flex-grow flex flex-col justify-center space-y-8">
+          <h1 className="text-4xl font-bold text-center ">AI Conversation Assistant</h1>
           <VideoConferenceRenderer isAISpeaking={isAISpeaking} />
           <SimpleVoiceAssistant 
             onStateChange={setAgentState} 
@@ -77,7 +78,6 @@ export default function Page() {
       </LiveKitRoom>
     </main>
   );
-
 }
 
 function SimpleVoiceAssistant(props: {
