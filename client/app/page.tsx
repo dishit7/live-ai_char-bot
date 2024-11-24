@@ -10,7 +10,7 @@ import {
   AgentState,
   DisconnectButton,
 } from "@livekit/components-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { MediaDeviceFailure } from "livekit-client";
 import { NoAgentNotification } from "@/components/NoAgentNotification";
 import { CloseIcon } from "@/components/CloseIcon";
@@ -52,9 +52,9 @@ export default function Page() {
           console.log('Disconnected from LiveKit room');
           updateConnectionDetails(undefined);
         }}
-        className="grid grid-rows-[2fr_1fr] items-center " // Add h-screen
+        className="grid grid-rows-[2fr_1fr] items-center h-screen" // Add h-screen
       >
-        <div className="grid grid-rows-[1fr_1fr] gap-4 "> {/* Add h-full */}
+        <div className="grid grid-rows-[1fr_1fr] gap-4 h-full"> {/* Add h-full */}
           <VideoConferenceRenderer isAISpeaking={isAISpeaking} />
           <SimpleVoiceAssistant 
             onStateChange={setAgentState} 
@@ -85,33 +85,60 @@ function SimpleVoiceAssistant(props: {
   onSpeakingChange?: (isSpeaking: boolean) => void;
 }) {
   const { state, audioTrack } = useVoiceAssistant();
-  
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const speakingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
   // Monitor audio levels to detect speaking
   useEffect(() => {
-    // Check if audioTrack and its publication exist
     if (!audioTrack?.publication?.track) return;
-    
+
     const mediaStream = new MediaStream([audioTrack.publication.track.mediaStreamTrack]);
     const audioContext = new AudioContext();
     const analyser = audioContext.createAnalyser();
     const source = audioContext.createMediaStreamSource(mediaStream);
     source.connect(analyser);
-    
+
+    analyser.fftSize = 256;
     const dataArray = new Uint8Array(analyser.frequencyBinCount);
-    
+
+    let animationFrame: number;
+
     const checkAudioLevel = () => {
       analyser.getByteFrequencyData(dataArray);
-      const audioLevel = dataArray.reduce((acc, val) => acc + val, 0) / dataArray.length;
-      const isSpeaking = audioLevel > 30; // Adjust threshold as needed
-      props.onSpeakingChange?.(isSpeaking);
-      requestAnimationFrame(checkAudioLevel);
+      const average = dataArray.reduce((acc, val) => acc + val, 0) / dataArray.length;
+
+      const newIsSpeaking = average > 30; // Adjust threshold as needed
+      if (newIsSpeaking) {
+        if (speakingTimeoutRef.current) {
+          clearTimeout(speakingTimeoutRef.current);
+          speakingTimeoutRef.current = null;
+        }
+        if (!isSpeaking) {
+          setIsSpeaking(true);
+          props.onSpeakingChange?.(true);
+        }
+      } else {
+        // Set isSpeaking to false only after a delay
+        if (!speakingTimeoutRef.current) {
+          speakingTimeoutRef.current = setTimeout(() => {
+            setIsSpeaking(false);
+            props.onSpeakingChange?.(false);
+          }, 500); // Adjust debounce time (in ms) as needed
+        }
+      }
+
+      animationFrame = requestAnimationFrame(checkAudioLevel);
     };
-    
+
     checkAudioLevel();
-    
+
     return () => {
+      cancelAnimationFrame(animationFrame);
       source.disconnect();
       audioContext.close();
+      if (speakingTimeoutRef.current) {
+        clearTimeout(speakingTimeoutRef.current);
+      }
     };
   }, [audioTrack, props.onSpeakingChange]);
 
@@ -131,6 +158,7 @@ function SimpleVoiceAssistant(props: {
     </div>
   );
 }
+
 
 function ControlBar(props: { onConnectButtonClicked: () => void; agentState: AgentState }) {
   const krisp = useKrispNoiseFilter();

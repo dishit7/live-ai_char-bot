@@ -10,33 +10,38 @@ export default function VideoConferenceRenderer({ isAISpeaking }: VideoConferenc
   const trackRefs = useTracks([Track.Source.Camera]);
   const userTrackRef = trackRefs.find((trackRef) => trackRef.participant.isLocal);
   const avatarVideoRef = useRef<HTMLVideoElement>(null);
+  const [isTestPlaying, setIsTestPlaying] = useState(false);
+  const [isVideoReady, setIsVideoReady] = useState(false);
 
-  // Debug video loading
+  // Handle video loading
   useEffect(() => {
     if (avatarVideoRef.current) {
       avatarVideoRef.current.addEventListener('loadeddata', () => {
-        console.log('AI video loaded');
-      });
-      avatarVideoRef.current.addEventListener('error', (e) => {
-        console.error('AI video error:', e);
+        setIsVideoReady(true);
+        console.log('Video loaded and ready');
       });
     }
   }, []);
 
-  // Modify video handling
+  // Handle video playback
   useEffect(() => {
     const videoElement = avatarVideoRef.current;
-    if (!videoElement) return;
+    if (!videoElement || !isVideoReady) return;
 
     const playVideo = async () => {
       try {
-        if (isAISpeaking) {
-          await videoElement.play();
-          console.log('Video playing');
+        if (isAISpeaking || isTestPlaying) {
+          if (videoElement.paused) {
+            videoElement.currentTime = 0;
+            await videoElement.play();
+            console.log('Playing video');
+          }
         } else {
-          videoElement.pause();
-          videoElement.currentTime = 0;
-          console.log('Video paused');
+          if (!videoElement.paused) {
+            videoElement.pause();
+            videoElement.currentTime = 0;
+            console.log('Paused video');
+          }
         }
       } catch (err) {
         console.error('Video playback error:', err);
@@ -44,26 +49,26 @@ export default function VideoConferenceRenderer({ isAISpeaking }: VideoConferenc
     };
 
     playVideo();
-  }, [isAISpeaking]);
+  }, [isAISpeaking, isTestPlaying, isVideoReady]);
 
   return (
-    <div className="grid grid-cols-2 gap-4 p-4 h-[400px]"> {/* Add fixed height */}
+    <div className="grid grid-cols-2 gap-4 p-4">
       {/* User's video */}
-      <div className="relative h-1/2 mt-60 w-1/2"> {/* Add h-full */}
+      <div className="relative h-1/2 mt-60 w-1/2">
         {userTrackRef ? (
           <VideoTrack 
             trackRef={userTrackRef} 
             className="w-full h-full object-cover rounded-lg"
           />
         ) : (
-          <div className="bg-gray-200 rounded-lg p-4  flex items-center justify-center h-1/2">
+          <div className="bg-gray-200 rounded-lg p-4 flex items-center justify-center">
             Camera off
           </div>
         )}
       </div>
 
       {/* AI avatar video */}
-      <div className="relative h-1/2 mt-60 w-1/2"> {/* Add h-full */}
+      <div className="relative h-1/2 mt-60 w-1/2">
         <video
           ref={avatarVideoRef}
           src="/ai-vid.mp4"
@@ -71,9 +76,19 @@ export default function VideoConferenceRenderer({ isAISpeaking }: VideoConferenc
           loop
           muted
           playsInline
-          autoPlay  // Add autoPlay
-          style={{ minHeight: '300px' }} // Add minimum height
         />
+        
+        {/* Debug information */}
+        <div className="absolute top-2 left-2 text-white text-sm bg-black/50 p-1 rounded">
+          {isAISpeaking ? 'AI Speaking' : 'AI Silent'}
+        </div>
+        
+        <button
+          onClick={() => setIsTestPlaying(!isTestPlaying)}
+          className="absolute bottom-4 right-4 bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        >
+          {isTestPlaying ? 'Stop Test' : 'Test Avatar'}
+        </button>
       </div>
     </div>
   );
